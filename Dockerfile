@@ -1,11 +1,10 @@
-FROM golang:1.16 AS build
-WORKDIR /src
-COPY ["go.mod", "go.sum", "./"]
+FROM golang:1.16-alpine3.15 as build
+WORKDIR /go/src/app
+COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -mod=readonly
+RUN CGO_ENABLED=0 go build -o /go/bin/app
 
-FROM gcr.io/distroless/static:nonroot
-LABEL org.opencontainers.image.source https://github.com/Robbilie/nginx-jwt-auth
-COPY --from=build /src/nginx-jwt-auth /
-ENTRYPOINT ["/nginx-jwt-auth"]
+FROM gcr.io/distroless/static-debian11
+COPY --from=build /go/bin/app /
+CMD ["/app"]
