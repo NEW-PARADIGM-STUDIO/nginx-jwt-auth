@@ -2,6 +2,9 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/ecdsa"
+	"crypto/x509"
+	"encoding/pem"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"io/ioutil"
 
 	"github.com/robbilie/nginx-jwt-auth/logger"
 
@@ -53,13 +57,14 @@ func main() {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	jwksUrl := getenv("JWKS_URL", "error")
-	if jwksUrl == "error" {
-		logger.Fatalw("no JWKS_URL")
+	jwksPath := getenv("JWKS_PATH", "")
+	jwksUrl := getenv("JWKS_URL", "")
+	if jwksUrl == "" && jwksPath == "" {
+		logger.Fatalw("no JWKS_URL or JWKS_PATH")
 		return
 	}
 
-	server, err := newServer(logger, jwksUrl)
+	server, err := newServer(logger, jwksPath, jwksUrl)
 	if err != nil {
 		logger.Fatalw("Couldn't initialize server", "err", err)
 	}
@@ -83,31 +88,43 @@ type server struct {
 	Logger  logger.Logger
 }
 
-func newServer(logger logger.Logger, jwksUrl string) (*server, error) {
-	m := map[string]keyfunc.Options{}
-	s := strings.Split(jwksUrl, ",")
+func newServer(logger logger.Logger, jwksPath string, jwksUrl string) (*server, error) {
 	var kf jwt.Keyfunc
-	if len(s) == 1 {
-		jwks, err := keyfunc.Get(s[0], keyfunc.Options{
+
+	if jwksPath != "" {
+		// Read the EC public key from the file
+		keyBytes, err := ioutil.ReadFile(jwksPath)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't read EC public key from file: %s. Error: %s", jwksPath, err.Error())
+		}
+
+		// Parse the EC public key
+		block, _ := pem.Decode(keyBytes)
+		if block == nil {
+			return nil, fmt.Errorf("Failed to parse PEM block containing the EC public key")
+		}
+
+		pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse EC public key: %s", err.Error())
+		}
+
+		ecPubKey, ok := pubKey.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("Given key is not an EC public key")
+		}
+
+		// Set the Keyfunc to use the EC public key
+		kf = func(token *jwt.Token) (interface{}, error) {
+			return ecPubKey, nil
+		}
+	} else {
+		jwks, err := keyfunc.Get(jwksUrl, keyfunc.Options{
 			RefreshInterval: time.Hour,
 			RefreshErrorHandler: func(err error) {
 				log.Printf("There was an error with the jwt.KeyFunc\nError: %s", err.Error())
 			},
 		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create JWKS from resource at the given URL.\nError: %s", err.Error())
-		}
-		kf = jwks.Keyfunc
-	} else {
-		for _, url := range s {
-			m[url] = keyfunc.Options{
-				RefreshInterval: time.Hour,
-				RefreshErrorHandler: func(err error) {
-					log.Printf("There was an error with the jwt.KeyFunc\nError: %s", err.Error())
-				},
-			}
-		}
-		jwks, err := keyfunc.GetMultiple(m, keyfunc.MultipleOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create JWKS from resource at the given URL.\nError: %s", err.Error())
 		}
