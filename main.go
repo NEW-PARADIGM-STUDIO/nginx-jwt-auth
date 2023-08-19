@@ -198,7 +198,14 @@ func (s *server) validateDeviceToken(r *http.Request) (claims jwt.MapClaims, ok 
 
 	jwtB64, err := request.AuthorizationHeaderExtractor.ExtractToken(r)
 	if err != nil {
-		s.Logger.Debugw("Failed to extract token from Autorization header", "err", err)
+		s.Logger.Infow("Failed to extract token from Autorization header", "err", err)
+		// If not found in header, try to extract from cookie
+        cookie, err := r.Cookie("Authorization")
+        if err != nil {
+            s.Logger.Errorw("Failed to extract token from cookie", "err", err)
+            return nil, false
+        }
+        jwtB64 = cookie.Value
 	}
 	token, err := jwt.Parse(jwtB64, s.Keyfunc)
 
