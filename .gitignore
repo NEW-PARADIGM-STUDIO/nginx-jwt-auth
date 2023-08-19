@@ -1,1 +1,4 @@
 .idea
+*.pyc
+private.pem
+public.pem

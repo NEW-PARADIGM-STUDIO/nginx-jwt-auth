@@ -62,3 +62,9 @@ this will first be json encoded, then base64 encoded.
 Response headers can also be configured via the query. Use a query
 parameter of the form `headers_foo=bar` to encode claims "bar"
 in response header "foo".
+
+# generate a private key for a curve
+openssl ecparam -name prime256v1 -genkey -noout -out private-key.pem
+
+# generate corresponding public key
+openssl ec -in private-key.pem -pubout -out public-key.pem

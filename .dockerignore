@@ -1,1 +1,4 @@
 .git
+private.pem
+public.pem
+encoder.py

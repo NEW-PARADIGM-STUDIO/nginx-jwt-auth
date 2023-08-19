@@ -232,8 +232,8 @@ func (s *server) queryStringClaimValidator(claims jwt.MapClaims, r *http.Request
 		}
 	}
 	if len(validClaims) == 0 || !hasClaimsPrefixedKey {
-		s.Logger.Warnw("No claims requirements set, rejecting", "queryParams", validClaims)
-		return false
+		s.Logger.Warnw("No claims requirements set, skiping", "queryParams", validClaims)
+		return true
 	}
 	s.Logger.Debugw("Validating claims from query string", "validClaims", validClaims)
 
