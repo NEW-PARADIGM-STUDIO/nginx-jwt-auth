@@ -68,3 +68,6 @@ openssl ecparam -name prime256v1 -genkey -noout -out private-key.pem
 
 # generate corresponding public key
 openssl ec -in private-key.pem -pubout -out public-key.pem
+
+# fetch matchmaker
+http.request(`http://matchmaker`, { 'Authorization': 'Bearer ' + jwt }).on('response', (response) => response.pipe(res))
